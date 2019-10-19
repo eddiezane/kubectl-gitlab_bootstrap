@@ -31,6 +31,7 @@ type GitLabBootstrapOptions struct {
 
 	GitLabAPIToken  string
 	GitLabProjectID string
+	GitLabURL       string
 
 	KubeConfig    string
 	RestConfig    *restclient.Config
@@ -79,6 +80,7 @@ func NewCmdGitLabBootstrap(streams genericclioptions.IOStreams) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&o.GitLabAPIToken, "gitlab-api-token", "", "Private token from GitLab. Pulled from env[\"GITLAB_API_TOKEN\"] if not provided")
+	cmd.Flags().StringVar(&o.GitLabURL, "gitlab-url", "", "Set to override default connection to GitLab")
 	o.ConfigFlags.AddFlags(cmd.Flags())
 
 	return cmd
@@ -146,6 +148,11 @@ func (o *GitLabBootstrapOptions) Validate() error {
 		return fmt.Errorf("GitLab project id is required")
 	}
 	o.GitLabAPI = gitlab.NewClient(nil, o.GitLabAPIToken)
+
+	if o.GitLabURL != "" {
+		o.GitLabAPI.SetBaseURL(o.GitLabURL)
+	}
+
 	_, _, err := o.GitLabAPI.Projects.GetProject(o.GitLabProjectID, nil)
 	if err != nil {
 		return errors.Wrap(err, "unable to get GitLab project")
@@ -174,11 +181,17 @@ func (o *GitLabBootstrapOptions) Run() error {
 // CreateServiceAccount creates the gitlab-admin ServiceAccount
 func (o *GitLabBootstrapOptions) CreateServiceAccount() error {
 	sai := o.KubeClientSet.CoreV1().ServiceAccounts("kube-system")
-	saSpec := &v1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: "gitlab-admin"}}
-	_, err := sai.Create(saSpec)
+	_, err := sai.Get("gitlab-admin", metav1.GetOptions{})
 	if err != nil {
-		return errors.Wrap(err, "unable to create service account")
+		saSpec := &v1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: "gitlab-admin"}}
+		_, err := sai.Create(saSpec)
+		if err != nil {
+			return errors.Wrap(err, "unable to create service account")
+		}
+	} else {
+		fmt.Println("Using existing gitlab-admin account")
 	}
+
 	return nil
 }
 
@@ -194,10 +207,17 @@ func (o *GitLabBootstrapOptions) CreateClusterRoleBinding() error {
 		Kind: "ClusterRole",
 	}
 	crbSpec := &rbacv1.ClusterRoleBinding{ObjectMeta: metav1.ObjectMeta{Name: "gitlab-admin"}, Subjects: []rbacv1.Subject{crbSubject}, RoleRef: roleRef}
-	_, err := o.KubeClientSet.RbacV1().ClusterRoleBindings().Create(crbSpec)
+	_, err := o.KubeClientSet.RbacV1().ClusterRoleBindings().Get("gitlab-admin", metav1.GetOptions{})
 	if err != nil {
-		return errors.Wrap(err, "unable to create clusterrolebinding")
+		_, err := o.KubeClientSet.RbacV1().ClusterRoleBindings().Create(crbSpec)
+		if err != nil {
+			return errors.Wrap(err, "unable to create clusterrolebinding")
+		}
+		return nil
+	} else {
+		fmt.Println("Using existing clusterrolebinding")
 	}
+	
 	return nil
 }
 
