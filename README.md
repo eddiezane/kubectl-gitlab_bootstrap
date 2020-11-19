@@ -4,7 +4,7 @@ This is a [kubectl plugin](https://kubernetes.io/docs/tasks/extend-kubectl/kubec
 
 The plugin will use the cluster set as your current context to create a ServiceAccount named `gitlab-admin` with the ClusterRole of `cluster-admin`. It will then use the provided [GitLab personal access token](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html) to bootstrap your cluster into the provided GitLab project. From there it's just two simple clicks to install Helm and the GitLab Runner.
 
-**Note:** Once GitLab implements API support for cluster applications we will be able to install the Runner directly into the cluster as well. Tracked at [this issue](https://gitlab.com/gitlab-org/gitlab-ce/issues/55778).
+**Note:** Once GitLab implements API support for cluster applications we will be able to install the Runner directly into the cluster as well. Tracked at [this issue](https://gitlab.com/gitlab-org/gitlab/-/issues/25935).
 
 ## Installation
 
